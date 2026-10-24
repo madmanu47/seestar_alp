@@ -1042,7 +1042,12 @@ class Seestar:
         profile, error = horizon.configured_profile()
         if error:
             self.logger.warning(f"Horizon file not used, flat horizon instead: {error}")
-        result = horizon.visibility(coord, profile, Config.horizon_margin)
+        try:
+            result = horizon.visibility(coord, profile, Config.horizon_margin)
+        except Exception as e:
+            # Never let the check stop an unattended night: keep the target.
+            self.logger.warning(f"Horizon check failed, {target_name} kept: {e}")
+            return False
         if result is None:
             self.logger.warning(
                 "Horizon check skipped: the site location is not set (lat / long are 0)."

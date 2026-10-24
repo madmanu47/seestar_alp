@@ -1,3 +1,4 @@
+import math
 import os
 
 import pytest
@@ -208,3 +209,39 @@ def test_visibility_accepts_the_schedulers_jnow_coordinates(astaffort):
     reference = horizon.visibility(POLARIS, None, when=WHEN)
     assert result["altitude"] == pytest.approx(reference["altitude"], abs=0.05)
     assert result["visible"] is True
+
+
+@pytest.mark.parametrize(
+    "ra, dec",
+    [
+        ("02h31m49.09s", "+89d15m50.8s"),  # Polaris
+        ("00h42m44.3s", "+41d16m09s"),  # M31
+        ("18h36m56.3s", "+38d47m01s"),  # Vega
+        ("05h16m41.4s", "+45d59m53s"),  # Capella
+        ("13h29m52.7s", "+47d11m43s"),  # M51
+        ("07h45m18.9s", "+28d01m34s"),  # Pollux
+    ],
+)
+def test_altaz_matches_astropy_within_a_tenth_of_a_degree(astaffort, ra, dec):
+    from astropy import units as u
+    from astropy.coordinates import AltAz, EarthLocation
+
+    coord = SkyCoord(ra=ra, dec=dec, frame="icrs")
+    altitude, azimuth = horizon.altaz(coord, 44.06, 0.65, WHEN)
+    site = EarthLocation(lat=44.06 * u.deg, lon=0.65 * u.deg)
+    reference = coord.transform_to(AltAz(obstime=WHEN, location=site))
+    assert altitude == pytest.approx(reference.alt.deg, abs=0.1)
+    gap = (azimuth - reference.az.deg + 180) % 360 - 180
+    # Azimuth is ill-defined near the zenith: compare it on the sky.
+    assert abs(gap) * math.cos(math.radians(altitude)) < 0.1
+
+
+def test_visibility_needs_no_earth_orientation_table(astaffort, monkeypatch):
+    # srvastro-like install: stale IERS tables and no way to download fresh ones.
+    def stale(*args, **kwargs):
+        raise ValueError("interpolating from IERS_Auto using predictive values")
+
+    monkeypatch.setattr(iers.IERS_Auto, "open", stale)
+    monkeypatch.setattr(iers.IERS, "open", stale)
+    result = horizon.visibility(POLARIS, None, when=Time.now())
+    assert result["altitude"] == pytest.approx(44.5, abs=1.0)

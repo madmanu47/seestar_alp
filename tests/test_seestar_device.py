@@ -3242,3 +3242,17 @@ def test_start_framed_mosaic_item_skips_a_target_below_the_horizon(
     horizon_site("0 -90\n")
     seestar.start_framed_mosaic_item(params)
     assert started == [True]
+
+
+def test_start_mosaic_item_keeps_the_target_when_the_check_fails(
+    monkeypatch, seestar, horizon_site
+):
+    received = _setup_mosaic_item_test(monkeypatch, seestar)
+    horizon_site("0 90\n")
+
+    def broken(*args, **kwargs):
+        raise ValueError("interpolating from IERS_Auto using predictive values")
+
+    monkeypatch.setattr("device.seestar_device.horizon.visibility", broken)
+    seestar.start_mosaic_item(_mosaic_item_params())
+    assert received.get("stack_type") == "DeepSky"

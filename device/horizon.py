@@ -11,11 +11,11 @@ can skip a target hidden behind it (``horizon_skip_hidden_targets``).
 """
 
 import bisect
+import math
 import os
 import threading
 
-import astropy.units as u
-from astropy.coordinates import AltAz, EarthLocation, SkyCoord
+from astropy.coordinates import FK5, SkyCoord
 from astropy.time import Time
 
 from device.config import Config
@@ -141,10 +141,40 @@ def configured_profile():
 
 
 def site_location():
-    """The site from ``[seestar_initialization]``; ``None`` while it is 0 / 0, unknown."""
+    """``(latitude, longitude)`` from ``[seestar_initialization]``.
+
+    ``None`` while both are 0, the value that stands for an unknown site.
+    """
     if Config.init_lat == 0 and Config.init_long == 0:
         return None
-    return EarthLocation(lat=Config.init_lat * u.deg, lon=Config.init_long * u.deg)
+    return float(Config.init_lat), float(Config.init_long)
+
+
+def altaz(coord: SkyCoord, latitude, longitude, when: Time):
+    """Altitude and azimuth of ``coord`` at ``when``, in degrees.
+
+    Hour angle from the mean sidereal time, on coordinates of the date: good
+    to a few hundredths of a degree, more than a horizon check needs. It
+    avoids astropy's AltAz frame, which needs Earth orientation (IERS) tables
+    less than 30 days old and raises on an install that cannot download them.
+    Refraction is left out: it lifts a low target by half a degree at most,
+    so the check errs on the hidden side.
+    """
+    of_date = coord.transform_to(FK5(equinox=when))
+    days = when.utc.jd - 2451545.0
+    sidereal = (280.46061837 + 360.98564736629 * days + longitude) % 360.0
+    hour_angle = math.radians(sidereal - of_date.ra.deg)
+    dec, lat = of_date.dec.radian, math.radians(latitude)
+    altitude = math.asin(
+        math.sin(dec) * math.sin(lat)
+        + math.cos(dec) * math.cos(lat) * math.cos(hour_angle)
+    )
+    azimuth = math.atan2(
+        -math.cos(dec) * math.sin(hour_angle),
+        math.sin(dec) * math.cos(lat)
+        - math.cos(dec) * math.sin(lat) * math.cos(hour_angle),
+    )
+    return math.degrees(altitude), math.degrees(azimuth) % 360.0
 
 
 def visibility(coord: SkyCoord, profile, margin=0.0, when=None):
@@ -158,8 +188,7 @@ def visibility(coord: SkyCoord, profile, margin=0.0, when=None):
     if location is None:
         return None
     when = Time.now() if when is None else when
-    altaz = coord.transform_to(AltAz(obstime=when, location=location))
-    altitude, azimuth = float(altaz.alt.deg), float(altaz.az.deg)
+    altitude, azimuth = altaz(coord, *location, when)
     horizon = profile.altitude_at(azimuth) if profile is not None else 0.0
     return {
         "altitude": round(altitude, 2),
