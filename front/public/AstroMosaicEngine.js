@@ -166,8 +166,8 @@ function getAstroMosaicFov(fov)
     return (fov*60.0)/3600.0;
 }
 
-/* 
- * Ensure that we have horizon limits fov every 5 arcminutes.
+/*
+ * Ensure that we have horizon limits for every 5 degrees, 0 to 355.
  */
 function fillHorizonLimits(horizon_limits)
 {
@@ -175,14 +175,23 @@ function fillHorizonLimits(horizon_limits)
         horizon_limits = [0];
     }
     var len = horizon_limits.length;
-    if (len < 71) {
-        // we need limit for every 5 arcminutes
+    if (len < 72) {
+        // we need limit for every 5 degrees
         var last = horizon_limits[len-1];
-        for (var k = len; k < 71; k++) {
+        for (var k = len; k < 72; k++) {
             horizon_limits[k] = last;
         }
     }
     return horizon_limits;
+}
+
+/*
+ * Index in the horizon limits of azimuth az, in degrees. Azimuths of
+ * 357.5 degrees and more round to 360, which is limit 0.
+ */
+function horizonLimitIndex(az)
+{
+    return Math.round(az / 5) % 72;
 }
 
 function filterImageTargetList(image_target_list)
@@ -340,6 +349,13 @@ function StartAstroMosaicViewerEngine(
         engine_native_resources.getTargetAboveRightNow = getTargetAboveRightNow;
         return;
     }
+
+    // Callers that bypass the AstroMosaicEngine() wrapper, like the planner
+    // card, may pass a partial horizon: pad it here as the wrapper does.
+    if (engine_params.horizonSoft != null) {
+        engine_params.horizonSoft = fillHorizonLimits(engine_params.horizonSoft);
+    }
+    engine_params.horizonHard = fillHorizonLimits(engine_params.horizonHard);
 
     if (!engine_params.timezoneOffset) {
         engine_params.timezoneOffset = 0;
@@ -1037,7 +1053,7 @@ function StartAstroMosaicViewerEngine(
             var softalt = null;        // target below soft horizon
             var hardalt = null;        // target below hard horizon or meridian transit
 
-            var horizon_index = Math.round(altaz.az / 5);
+            var horizon_index = horizonLimitIndex(altaz.az);
 
             if (prevaz != null) {
                 if ((prevaz > 180 && altaz.az < 180) || // from 360 to 0

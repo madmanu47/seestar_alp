@@ -2884,3 +2884,23 @@ def test_astro_mosaic_template_offers_s50_pro_and_preselects_model():
     )
     assert '<option value="S50 Pro" selected>' in html
     assert "Wide" not in html.split('id="seestar"')[1].split("</select>")[0]
+
+
+def test_astro_mosaic_template_uses_configured_location():
+    from jinja2 import Environment, FileSystemLoader
+
+    env = Environment(loader=FileSystemLoader("front/templates"))
+    html = env.get_template("partials/astro_mosaic.html").render(
+        planner_model="S50",
+        utc_offset=0,
+        config_lat=44.06,
+        config_long=0.65,
+        telescope={"device_num": 1},
+        root="",
+    )
+    assert "location_lat: 44.06," in html
+    assert "location_lng: 0.65," in html
+    assert "32.92" not in html
+    assert "-96.72" not in html
+    # The chart's time zone is the browser's, not a fixed UTC-5.
+    assert "timezoneOffset: -new Date().getTimezoneOffset() / 60," in html
