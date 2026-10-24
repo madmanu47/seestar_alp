@@ -288,6 +288,12 @@ class _Config:
         )
         # Path to PEM key used for Seestar firmware 7.18+ challenge-response authentication
         self.seestar_interop_pem: str = self.get_toml(section, "interop_pem", "")
+        # Local horizon profile, a N.I.N.A. .hrz file (see device/horizon.py)
+        self.horizon_file: str = self.get_toml(section, "horizon_file", "")
+        self.horizon_skip_hidden_targets: bool = self.get_toml(
+            section, "horizon_skip_hidden_targets", False
+        )
+        self.horizon_margin: float = self.get_toml(section, "horizon_margin", 0.0)
 
     def load_from_form(self, req):
         """
@@ -449,6 +455,21 @@ class _Config:
             "seestar_initialization",
             "interop_pem",
             req.media["interop_pem"],
+        )
+        self.set_toml(
+            "seestar_initialization",
+            "horizon_file",
+            req.media.get("horizon_file", "").strip(),
+        )
+        self.set_toml(
+            "seestar_initialization",
+            "horizon_skip_hidden_targets",
+            "horizon_skip_hidden_targets" in req.media,
+        )
+        self.set_toml(
+            "seestar_initialization",
+            "horizon_margin",
+            float(req.media.get("horizon_margin") or 0.0),
         )
         self.load(self.path_to_dat, preloaded_dict=self._dict)
 
@@ -949,6 +970,24 @@ class _Config:
                     "Interop PEM path:",
                     self.seestar_interop_pem,
                     "Path to PEM key for Seestar firmware 7.18+ authentication (e.g. /etc/seestar/seestar_client_key.pem)",
+                )
+                + self.render_text(
+                    "horizon_file",
+                    "Horizon file:",
+                    self.horizon_file,
+                    "Path to a N.I.N.A. horizon file (.hrz, one 'azimuth altitude' pair per line). Empty: flat horizon",
+                )
+                + self.render_checkbox(
+                    "horizon_skip_hidden_targets",
+                    "Skip hidden targets:",
+                    self.horizon_skip_hidden_targets,
+                    "Scheduler: skip a mosaic target that is below the horizon when its turn comes",
+                )
+                + self.render_text(
+                    "horizon_margin",
+                    "Horizon margin:",
+                    self.horizon_margin,
+                    "Degrees a target must clear above the horizon for the scheduler",
                 ),
             )
             + self.render_config_section(
