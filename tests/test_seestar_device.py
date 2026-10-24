@@ -3104,3 +3104,141 @@ def test_scheduler_thread_fn_dispatches_start_framed_mosaic(monkeypatch, seestar
     seestar.scheduler_thread_fn()
 
     assert calls == [{"target_name": "T"}]
+
+
+# ---------------------------------------------------------------------------
+# Scheduler: skipping targets below the horizon
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def horizon_site(monkeypatch, tmp_path):
+    """Skip enabled, site set; returns a function writing the horizon file.
+
+    A profile at +90 degrees hides every target and one at -90 hides none,
+    whatever the time the test runs at.
+    """
+    from astropy.utils import iers
+
+    from device import horizon
+
+    monkeypatch.setattr(iers.conf, "auto_download", False)
+    monkeypatch.setattr(Config, "init_lat", 44.06)
+    monkeypatch.setattr(Config, "init_long", 0.65)
+    monkeypatch.setattr(Config, "horizon_skip_hidden_targets", True)
+    monkeypatch.setattr(Config, "horizon_margin", 0.0)
+    horizon._cache.update(key=None, profile=None, error=None)
+
+    def write(text):
+        path = tmp_path / "site.hrz"
+        path.write_text(text)
+        monkeypatch.setattr(Config, "horizon_file", str(path))
+        horizon._cache.update(key=None, profile=None, error=None)
+
+    return write
+
+
+def test_start_mosaic_item_skips_a_target_below_the_horizon(
+    monkeypatch, seestar, horizon_site
+):
+    received = _setup_mosaic_item_test(monkeypatch, seestar)
+    calls = []
+    monkeypatch.setattr(
+        seestar, "send_message_param_sync", lambda p: calls.append(p) or {}
+    )
+    horizon_site("0 90\n")
+    assert seestar.start_mosaic_item(_mosaic_item_params()) is None
+    assert received == {}  # no mosaic thread
+    assert calls == []  # nothing sent to the scope
+    assert seestar.is_cur_scheduler_item_working is False
+
+
+def test_start_mosaic_item_runs_a_target_above_the_horizon(
+    monkeypatch, seestar, horizon_site
+):
+    received = _setup_mosaic_item_test(monkeypatch, seestar)
+    horizon_site("0 -90\n")
+    seestar.start_mosaic_item(_mosaic_item_params())
+    assert received.get("stack_type") == "DeepSky"
+
+
+def test_start_mosaic_item_ignores_the_horizon_unless_enabled(
+    monkeypatch, seestar, horizon_site
+):
+    received = _setup_mosaic_item_test(monkeypatch, seestar)
+    horizon_site("0 90\n")
+    monkeypatch.setattr(Config, "horizon_skip_hidden_targets", False)
+    seestar.start_mosaic_item(_mosaic_item_params())
+    assert received.get("stack_type") == "DeepSky"
+
+
+def test_start_mosaic_item_at_current_position_is_not_checked(
+    monkeypatch, seestar, horizon_site
+):
+    received = _setup_mosaic_item_test(monkeypatch, seestar)
+    horizon_site("0 90\n")
+    seestar.ra, seestar.dec = 0.7122, 41.269
+    params = dict(_mosaic_item_params(), ra=-1, dec=-1)
+    seestar.start_mosaic_item(params)
+    assert received.get("stack_type") == "DeepSky"
+
+
+def test_start_mosaic_item_without_site_location_is_not_checked(
+    monkeypatch, seestar, horizon_site
+):
+    received = _setup_mosaic_item_test(monkeypatch, seestar)
+    horizon_site("0 90\n")
+    monkeypatch.setattr(Config, "init_lat", 0)
+    monkeypatch.setattr(Config, "init_long", 0)
+    seestar.start_mosaic_item(_mosaic_item_params())
+    assert received.get("stack_type") == "DeepSky"
+
+
+def test_start_mosaic_item_unusable_file_falls_back_to_a_flat_horizon(
+    monkeypatch, seestar, horizon_site
+):
+    received = _setup_mosaic_item_test(monkeypatch, seestar)
+    horizon_site("not a horizon\n")
+    # Flat horizon at 0 plus a 91-degree margin: no target can clear it.
+    monkeypatch.setattr(Config, "horizon_margin", 91.0)
+    seestar.start_mosaic_item(_mosaic_item_params())
+    assert received == {}
+    # With a margin no target can miss, the item runs.
+    monkeypatch.setattr(Config, "horizon_margin", -91.0)
+    seestar.start_mosaic_item(_mosaic_item_params())
+    assert received.get("stack_type") == "DeepSky"
+
+
+def test_start_framed_mosaic_item_skips_a_target_below_the_horizon(
+    monkeypatch, seestar, horizon_site
+):
+    started = []
+
+    class FakeThread:
+        def __init__(self, target=None):
+            self.name = ""
+
+        def start(self):
+            started.append(True)
+
+    monkeypatch.setattr("device.seestar_device.threading.Thread", FakeThread)
+    params = {
+        "target_name": "M31",
+        "ra": "0.7122",
+        "dec": "41.269",
+        "is_j2000": False,
+        "is_use_lp_filter": False,
+        "panel_time_sec": 60,
+        "mosaic_scale": 1.5,
+        "mosaic_angle": 0.0,
+        "gain": 80,
+    }
+    seestar.schedule["state"] = "working"
+
+    horizon_site("0 90\n")
+    seestar.start_framed_mosaic_item(params)
+    assert started == []
+
+    horizon_site("0 -90\n")
+    seestar.start_framed_mosaic_item(params)
+    assert started == [True]

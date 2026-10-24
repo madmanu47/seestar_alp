@@ -26,6 +26,7 @@ from pyhocon import ConfigFactory
 
 from device.abstract_device import MessageParams, StartStackParams, Schedule
 from device.config import Config
+from device import horizon
 from device.version import Version  # type: ignore
 from device.seestar_util import Util
 from device.event_callbacks import *
@@ -1022,6 +1023,39 @@ class Seestar:
         )
         self.logger.info(f"coord in az-alt: {altaz.az.deg}, {altaz.alt.deg}")
         return [altaz.alt.deg, altaz.az.deg]
+
+    @staticmethod
+    def _at_current_position(params) -> bool:
+        """A mosaic item with RA and Dec -1 images where the scope already points."""
+        ra, dec = params["ra"], params["dec"]
+        return not isinstance(ra, str) and ra == -1 and dec == -1
+
+    def is_hidden_by_horizon(self, target_name, coord) -> bool:
+        """Whether the scheduler should skip ``target_name``, below the horizon now.
+
+        Only with ``horizon_skip_hidden_targets`` set. The horizon is the
+        configured profile, flat at 0 degrees without one, plus
+        ``horizon_margin``.
+        """
+        if not Config.horizon_skip_hidden_targets:
+            return False
+        profile, error = horizon.configured_profile()
+        if error:
+            self.logger.warning(f"Horizon file not used, flat horizon instead: {error}")
+        result = horizon.visibility(coord, profile, Config.horizon_margin)
+        if result is None:
+            self.logger.warning(
+                "Horizon check skipped: the site location is not set (lat / long are 0)."
+            )
+            return False
+        if result["visible"]:
+            return False
+        self.logger.info(
+            f"{target_name} is below the horizon: altitude {result['altitude']}, "
+            f"azimuth {result['azimuth']}, horizon {result['horizon']} "
+            f"+ margin {result['margin']} degrees. Moving to next schedule item if any."
+        )
+        return True
 
     def get_pa_error(self, param):
         if self.cur_pa_error_x is None or self.cur_pa_error_y is None:
@@ -2358,6 +2392,11 @@ class Seestar:
         center_RA = parsed_coord.ra.hour
         center_Dec = parsed_coord.dec.deg
 
+        if not self._at_current_position(params) and self.is_hidden_by_horizon(
+            target_name, parsed_coord
+        ):
+            return
+
         response = self.send_message_param_sync({"method": "get_setting"})
         result = response["result"]
         self.logger.info(f"get_setting response: {result}")
@@ -2455,6 +2494,11 @@ class Seestar:
         parsed_coord = Util.parse_coordinate(is_j2000, center_RA, center_Dec)
         center_RA = parsed_coord.ra.hour
         center_Dec = parsed_coord.dec.deg
+
+        if not self._at_current_position(params) and self.is_hidden_by_horizon(
+            target_name, parsed_coord
+        ):
+            return
 
         self.logger.info("received framed mosaic parameters:")
         self.logger.info("  target        : " + target_name)
