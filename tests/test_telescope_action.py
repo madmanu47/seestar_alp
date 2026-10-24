@@ -396,3 +396,67 @@ def test_connected_and_command_responder_paths():
     for cls in [telescope.commandblind, telescope.commandbool, telescope.commandstring]:
         with pytest.raises(TypeError):
             cls().on_put(req_cmd, DummyResp(), devnum=1)
+
+
+@pytest.fixture
+def horizon_file(monkeypatch, tmp_path):
+    from astropy.utils import iers
+
+    from device import horizon
+    from device.config import Config
+
+    monkeypatch.setattr(iers.conf, "auto_download", False)
+    path = tmp_path / "site.hrz"
+    path.write_text("0 90\n")  # every target is hidden, whatever the time
+    monkeypatch.setattr(Config, "horizon_file", str(path))
+    monkeypatch.setattr(Config, "horizon_skip_hidden_targets", True)
+    monkeypatch.setattr(Config, "horizon_margin", 1.5)
+    monkeypatch.setattr(Config, "init_lat", 44.06)
+    monkeypatch.setattr(Config, "init_long", 0.65)
+    horizon._cache.update(key=None, profile=None, error=None)
+    return path
+
+
+def _put_action(action_name, params, devnum=1):
+    set_shr_logger(logging.getLogger("test-telescope"))
+    device_exceptions.logger = DummyLogger()
+    telescope.seestar_dev.clear()
+    fake = FakeDevice(connected=True)
+    telescope.seestar_dev[1] = fake
+    resp = DummyResp()
+    telescope.action().on_put(DummyReq(action_name, params), resp, devnum=devnum)
+    payload = json.loads(resp.text)
+    assert payload["ErrorNumber"] == 0, payload
+    assert fake.calls == []  # site-level: nothing asked of the scope
+    return payload["Value"]
+
+
+def test_action_get_horizon(horizon_file):
+    value = _put_action("get_horizon", {})
+    assert value["file"] == str(horizon_file)
+    assert value["error"] is None
+    assert value["points"] == [[0.0, 90.0]]
+    assert len(value["limits_5deg"]) == 72
+    assert value["skip_hidden_targets"] is True
+    assert value["margin"] == 1.5
+
+
+def test_action_check_target_visibility(horizon_file):
+    value = _put_action(
+        "check_target_visibility",
+        {"ra": "00:42:44", "dec": "+41:16:09", "is_j2000": True},
+    )
+    assert value["horizon"] == 90
+    assert value["margin"] == 1.5
+    assert value["visible"] is False
+    assert 0 <= value["azimuth"] < 360
+    assert value["horizon_error"] is None
+
+
+def test_action_check_target_visibility_without_location(horizon_file, monkeypatch):
+    from device.config import Config
+
+    monkeypatch.setattr(Config, "init_lat", 0)
+    monkeypatch.setattr(Config, "init_long", 0)
+    value = _put_action("check_target_visibility", {"ra": 0.7122, "dec": 41.269})
+    assert value == {"error": "site location not set: lat / long are 0"}

@@ -19,6 +19,7 @@ from astropy.coordinates import AltAz, EarthLocation, SkyCoord
 from astropy.time import Time
 
 from device.config import Config
+from device.seestar_util import Util
 
 
 class HorizonError(ValueError):
@@ -167,3 +168,34 @@ def visibility(coord: SkyCoord, profile, margin=0.0, when=None):
         "margin": margin,
         "visible": altitude > horizon + margin,
     }
+
+
+def describe():
+    """The ``get_horizon`` action: settings and profile, as plain data."""
+    profile, error = configured_profile()
+    return {
+        "file": Config.horizon_file,
+        "error": error,
+        "points": [list(point) for point in profile.points] if profile else [],
+        "limits_5deg": profile.step_limits() if profile else None,
+        "skip_hidden_targets": Config.horizon_skip_hidden_targets,
+        "margin": Config.horizon_margin,
+    }
+
+
+def check_target(params):
+    """The ``check_target_visibility`` action.
+
+    ``params``: ``ra`` and ``dec`` (decimal hours and degrees, or
+    sexagesimal strings) and ``is_j2000`` (default true). Answers for now,
+    against the configured profile plus ``horizon_margin``.
+    """
+    coord = Util.parse_coordinate(
+        params.get("is_j2000", True), params["ra"], params["dec"]
+    )
+    profile, error = configured_profile()
+    result = visibility(coord, profile, Config.horizon_margin)
+    if result is None:
+        return {"error": "site location not set: lat / long are 0"}
+    result["horizon_error"] = error
+    return result
