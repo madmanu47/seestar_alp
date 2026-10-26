@@ -59,6 +59,8 @@ def test_page_renders_the_panorama_tool(client, monkeypatch):
     assert 'src="/public/horizon_panorama.js"' in resp.text
     assert 'type="file" id="hz-photo"' in resp.text
     assert "flat horizon at 30" in resp.text
+    # Reachable from the Functions menu of every page.
+    assert 'href="/1/horizon">Horizon (MMhorizon)</a>' in resp.text
 
 
 def test_page_shows_the_current_profile(client, monkeypatch):
