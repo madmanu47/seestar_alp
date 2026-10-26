@@ -16,6 +16,12 @@ describe("mmhorizon_wasm.js", () => {
     expect(controle()).toMatch(/^contrôle : tour 1800\.0 px/);
   });
 
+  it("has what the Horizon page calls", () => {
+    for (const method of ["fixerNord", "fixerReference", "fixerHorizon", "fixerTour", "exporter", "fichierHorizon"]) {
+      expect(typeof Releve.prototype[method]).toBe("function");
+    }
+  });
+
   it("reports an unreadable photo as an exception", () => {
     expect(() => new Releve(new Uint8Array([1, 2, 3]), "nothing.jpg")).toThrow(/photo illisible/);
   });

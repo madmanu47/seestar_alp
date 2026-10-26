@@ -15,6 +15,7 @@ function state() {
     infos: JSON.parse(releve.infos()),
     horizon: releve.horizon,
     north: north ?? null,
+    turn: releve.tour,
     limit: releve.limite(),
     // Columns of north, east, south and west, once north is set.
     cardinals: north === undefined ? null : [0, 90, 180, 270].map((a) => releve.colonneDAzimut(a)),
@@ -32,7 +33,6 @@ const operations = {
       ...state(),
       width: releve.largeur,
       height: releve.hauteur,
-      turn: releve.tour,
       previewWidth: releve.apercuLargeur,
       previewHeight: releve.apercuHauteur,
       preview: releve.apercu(),
@@ -44,6 +44,12 @@ const operations = {
   },
   setHorizon({ row }) {
     releve.fixerHorizon(row);
+    return state();
+  },
+  // The same point seen at columns a and b, at both ends of a panorama that
+  // runs past a full turn: one turn is the distance between them.
+  setTurn({ a, b }) {
+    releve.fixerTour(a, b);
     return state();
   },
   // The Sun at (column, row) stands at (azimuth, altitude): it sets both

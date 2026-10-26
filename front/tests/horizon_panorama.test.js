@@ -1,10 +1,12 @@
 import {
+  extent,
   hasUtcOffset,
   horizonLineFromSun,
   photoPoint,
   photoTimeUtc,
   profilePoints,
   summary,
+  turnBetween,
 } from "../public/horizon_panorama_core.js";
 
 describe("horizon_panorama_core.js", () => {
@@ -30,6 +32,16 @@ describe("horizon_panorama_core.js", () => {
     const point = photoPoint(610, 182.5, rect, 3600, 795, 12672, 2800);
     expect(point.column).toBeCloseTo(6336, 6);
     expect(point.row).toBeCloseTo(1400, 6);
+  });
+
+  it("takes two clicks for one turn only between half and all of the photo width", () => {
+    // The Sun of the 2026-10-23 panorama, at both ends of a 12672 px photo.
+    expect(turnBetween(1710, 12177, 12672)).toBe(10467);
+    expect(turnBetween(12177, 1710, 12672)).toBe(10467);
+    expect(turnBetween(1710, 1790, 12672)).toBeNull(); // the same Sun, clicked again
+    expect(turnBetween(0, 12673, 12672)).toBeNull();
+    expect(turnBetween(0, 6336, 12672)).toBe(6336);
+    expect(extent(12672, 10467)).toBeCloseTo(435.8, 1);
   });
 
   it("draws the profile like the Planning page's Horizon card", () => {
@@ -62,6 +74,29 @@ describe("horizon_panorama_core.js", () => {
       "12672 × 2800 px · cylindrical · 360° of azimuth (assumed full turn) · " +
         "altitude -34.2° to +35.3° · landscape, ultra-wide lens · " +
         "obstacles above the top of the photo over 3° · GPano metadata ignored: inconsistent with the lens",
+    );
+  });
+
+  it("says how far a panorama runs past a full turn", () => {
+    const infos = {
+      largeur: 12672,
+      hauteur: 2800,
+      projection: "cylindrique",
+      couverture_deg: 360,
+      couverture_methode: "designation",
+      tour_px: 10467,
+      champ_vertical_deg: [-42.86, 36.97],
+      orientation: "paysage",
+      objectif: "ultra-grand-angle",
+      au_dela_du_champ: 0,
+      gpano_ecarte: null,
+    };
+    expect(summary(infos)).toBe(
+      "12672 × 2800 px · cylindrical · 436° of azimuth, one turn in 10467 px (same point marked at both ends) · " +
+        "altitude -42.9° to +37.0° · landscape, ultra-wide lens",
+    );
+    expect(summary({ ...infos, tour_px: 12672, couverture_methode: "supposee" })).toContain(
+      "· 360° of azimuth (assumed full turn) ·",
     );
   });
 });

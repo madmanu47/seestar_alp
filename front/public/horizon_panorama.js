@@ -1,8 +1,17 @@
 // Horizon page: a 360-degree panorama analysed in the browser by the MMhorizon
-// core (horizon_worker.js), oriented on north or on the Sun, then saved as the
-// local horizon profile (.hrz) of this ALP.
+// core (horizon_worker.js), oriented on north or on the Sun, its turn set when
+// it runs past 360 degrees, then saved as the local horizon profile (.hrz) of
+// this ALP.
 
-import { hasUtcOffset, photoPoint, photoTimeUtc, profilePoints, summary } from "./horizon_panorama_core.js";
+import {
+  extent,
+  hasUtcOffset,
+  photoPoint,
+  photoTimeUtc,
+  profilePoints,
+  summary,
+  turnBetween,
+} from "./horizon_panorama_core.js";
 
 const page = document.getElementById("hz-page");
 const $ = (id) => document.getElementById(id);
@@ -11,8 +20,13 @@ const configLon = Number(page.dataset.lon);
 
 const HINTS = {
   north: "Click the point of the panorama that faces true north.",
-  sun: "Click the centre of the Sun: its position at the time of the photo sets both north and the horizon line.",
+  sun:
+    "Click the centre of the Sun: its position at the time of the photo sets both north and the horizon line. " +
+    "If the Sun shows at both ends of the panorama, click it at both: the distance between the two is one full turn.",
   horizon: "Click a point at altitude 0°, the true horizon (for instance a distant sea or plain), to set the horizon line.",
+  turn:
+    "When the panorama runs past a full turn, its start shows again at its end. Click a point near the start, " +
+    "then the same point near the end: the distance between them is one full turn (360°).",
 };
 
 // --- Worker ---------------------------------------------------------------
@@ -42,10 +56,12 @@ function call(op, args, transfer = []) {
 
 // --- Page state -----------------------------------------------------------
 
-let photo = null; // {name, width, height, turn, previewWidth, previewHeight}
-let current = null; // worker state(): infos, horizon, north, limit, cardinals
+let photo = null; // {name, width, height, previewWidth, previewHeight}
+let current = null; // worker state(): infos, horizon, north, turn, limit, cardinals
 let files = null; // {hrz, horizonJson} once north is set
 let base = null; // canvas holding the preview image
+let firstPoint = null; // {column, row}: first click of the "One turn" mode
+let lastSun = null; // {column, row}: the Sun click north and horizon come from
 
 function setStatus(text, kind = "secondary") {
   const status = $("hz-status");
@@ -104,7 +120,7 @@ function draw() {
     ctx.textAlign = "center";
     ["N", "E", "S", "W"].forEach((name, i) => {
       // Repeat the mark on every turn the photo shows.
-      for (let x = current.cardinals[i]; x < photo.width; x += photo.turn) {
+      for (let x = current.cardinals[i]; x < photo.width; x += current.turn) {
         ctx.strokeStyle = ctx.fillStyle = i === 0 ? "rgb(255, 220, 0)" : "rgba(255, 220, 0, 0.6)";
         ctx.lineWidth = (i === 0 ? 2 : 1) * px;
         ctx.beginPath();
@@ -114,6 +130,20 @@ function draw() {
         ctx.fillText(name, x * kx, 15 * px);
       }
     });
+  }
+
+  if (firstPoint) {
+    ctx.strokeStyle = "rgb(255, 0, 255)";
+    ctx.lineWidth = 2 * px;
+    ctx.setLineDash([4 * px, 4 * px]);
+    ctx.beginPath();
+    ctx.moveTo(firstPoint.column * kx, 0);
+    ctx.lineTo(firstPoint.column * kx, canvas.height);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(firstPoint.column * kx, firstPoint.row * ky, 8 * px, 0, 2 * Math.PI);
+    ctx.stroke();
   }
 }
 
@@ -136,7 +166,8 @@ async function apply(state) {
   $("hz-north").textContent =
     current.north === null
       ? "North is not set yet: azimuths are relative to the left edge of the photo."
-      : `North at column ${Math.round(current.north)} · horizon line at row ${Math.round(current.horizon)}.`;
+      : `North at column ${Math.round(current.north)} · horizon line at row ${Math.round(current.horizon)} · ` +
+        `one turn in ${Math.round(current.turn)} px.`;
   for (const id of ["hz-save", "hz-download-hrz", "hz-download-json"]) {
     $(id).disabled = files === null;
   }
@@ -155,10 +186,11 @@ async function openPhoto(file) {
       name: file.name,
       width: state.width,
       height: state.height,
-      turn: state.turn,
       previewWidth: state.previewWidth,
       previewHeight: state.previewHeight,
     };
+    firstPoint = null;
+    lastSun = null;
     base = document.createElement("canvas");
     base.width = photo.previewWidth;
     base.height = photo.previewHeight;
@@ -197,18 +229,68 @@ async function onClick(event) {
   );
   try {
     if (mode() === "north") {
+      lastSun = null;
       await apply(await call("setNorth", { column }));
     } else if (mode() === "horizon") {
+      lastSun = null;
       await apply(await call("setHorizon", { row }));
+    } else if (mode() === "turn") {
+      await markTurn(column, row);
     } else {
-      await orientOnSun(column, row);
+      await clickSun(column, row);
     }
   } catch (e) {
     setStatus(e.message, "danger");
   }
 }
 
-async function orientOnSun(column, row) {
+async function markTurn(column, row) {
+  if (!firstPoint) {
+    firstPoint = { column, row };
+    draw();
+    setStatus(`First point at column ${Math.round(column)}: now click the same point at the other end of the panorama.`);
+    return;
+  }
+  const a = firstPoint.column;
+  firstPoint = null;
+  const turn = turnBetween(a, column, photo.width);
+  if (turn === null) {
+    draw();
+    throw new Error(
+      `The two points are ${Math.round(Math.abs(column - a))} px apart: one turn spans between half and all of ` +
+        `the photo width (${Math.round(photo.width / 2)} to ${photo.width} px). Click the first point again.`,
+    );
+  }
+  await apply(await call("setTurn", { a, b: column }));
+  const turnText = `One turn in ${Math.round(turn)} px: the photo covers ${Math.round(extent(photo.width, turn))}°.`;
+  if (lastSun) {
+    // North and the horizon line came from the Sun under the former turn.
+    await orientOnSun(lastSun.column, lastSun.row, `${turnText} North and horizon line set again from the Sun. `);
+  } else {
+    setStatus(turnText, "success");
+  }
+}
+
+async function clickSun(column, row) {
+  // The Sun clicked again, at the other end of a panorama that runs past a
+  // full turn: the two clicks also set the turn.
+  const turn = lastSun && turnBetween(lastSun.column, column, photo.width);
+  if (!turn) {
+    lastSun = { column, row };
+    await orientOnSun(column, row);
+    return;
+  }
+  await apply(await call("setTurn", { a: lastSun.column, b: column }));
+  lastSun = { column: lastSun.column, row: (lastSun.row + row) / 2 };
+  await orientOnSun(
+    lastSun.column,
+    lastSun.row,
+    `Sun marked at both ends: one turn in ${Math.round(turn)} px, the photo covers ` +
+      `${Math.round(extent(photo.width, turn))}°. `,
+  );
+}
+
+async function orientOnSun(column, row, prefix = "") {
   const exif = current.infos.photo;
   const when = photoTimeUtc(exif.date);
   const lat = exif.latitude ?? configLat;
@@ -222,7 +304,7 @@ async function orientOnSun(column, row) {
   const where = exif.latitude != null ? "the photo's location" : "the ALP's location";
   const zone = hasUtcOffset(exif.date) ? "" : ", photo time taken as this browser's local time";
   setStatus(
-    `Sun at azimuth ${sun.azimuth.toFixed(1)}°, altitude ${sun.altitude.toFixed(1)}° on ${exif.date} ` +
+    `${prefix}Sun at azimuth ${sun.azimuth.toFixed(1)}°, altitude ${sun.altitude.toFixed(1)}° on ${exif.date} ` +
       `(${where}${zone}).`,
     "success",
   );
@@ -253,6 +335,10 @@ function onMove(event) {
 
 function updateHint() {
   $("hz-hint").textContent = HINTS[mode()];
+  if (firstPoint) {
+    firstPoint = null;
+    draw();
+  }
 }
 
 function setZoom() {

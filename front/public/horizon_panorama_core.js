@@ -41,6 +41,22 @@ export function photoPoint(clientX, clientY, rect, canvasWidth, canvasHeight, ph
 }
 
 /*
+ * Width of one full turn, in photo pixels, if columns a and b can show the
+ * same point at the start and at the end of a panorama that runs past a full
+ * turn: between half and all of the photo width, the bounds MMhorizon's
+ * fixerTour accepts. null otherwise.
+ */
+export function turnBetween(a, b, photoWidth) {
+  const turn = Math.abs(b - a);
+  return turn >= photoWidth / 2 && turn <= photoWidth ? turn : null;
+}
+
+/* Azimuth, in degrees, that a panorama photoWidth wide covers with this turn. */
+export function extent(photoWidth, turn) {
+  return (photoWidth * 360) / turn;
+}
+
+/*
  * SVG points of a profile of 360 altitudes (null where the panorama gave
  * none), for a viewBox where x is the azimuth and y = 90 - altitude, clamped
  * to 0-90 degrees as on the Planning page's Horizon card.
@@ -61,6 +77,7 @@ const WORDS = {
   equirectangulaire: "equirectangular",
   gpano: "GPano metadata",
   chevauchement: "overlap",
+  designation: "same point marked at both ends",
   supposee: "assumed full turn",
   paysage: "landscape",
   portrait: "portrait",
@@ -81,7 +98,7 @@ export function summary(infos) {
   const parts = [
     `${infos.largeur} × ${infos.hauteur} px`,
     word(infos.projection),
-    `${Math.round(infos.couverture_deg)}° of azimuth (${word(infos.couverture_methode)})`,
+    coverage(infos),
     `altitude ${signed(low)}° to ${signed(high)}°`,
     `${word(infos.orientation)}, ${word(infos.objectif)}`,
   ];
@@ -92,6 +109,16 @@ export function summary(infos) {
     parts.push("GPano metadata ignored: inconsistent with the lens");
   }
   return parts.join(" · ");
+}
+
+function coverage(infos) {
+  const method = word(infos.couverture_methode);
+  // couverture_deg stops at 360: past a full turn, say how far it runs.
+  const degrees = infos.tour_px ? extent(infos.largeur, infos.tour_px) : infos.couverture_deg;
+  if (degrees >= 360.5) {
+    return `${Math.round(degrees)}° of azimuth, one turn in ${Math.round(infos.tour_px)} px (${method})`;
+  }
+  return `${Math.round(infos.couverture_deg)}° of azimuth (${method})`;
 }
 
 function signed(value) {

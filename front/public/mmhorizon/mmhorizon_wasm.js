@@ -130,6 +130,18 @@ export class Releve {
         wasm.releve_fixerReference(this.__wbg_ptr, colonne, azimut);
     }
     /**
+     * Largeur d'un tour par un même point vu au début (`a`) et à la fin (`b`)
+     * du panorama. Exception si l'écart ne peut pas être un tour.
+     * @param {number} a
+     * @param {number} b
+     */
+    fixerTour(a, b) {
+        const ret = wasm.releve_fixerTour(this.__wbg_ptr, a, b);
+        if (ret[1]) {
+            throw takeFromExternrefTable0(ret[0]);
+        }
+    }
+    /**
      * Hauteur au-dessus de l'horizon de la ligne.
      * @param {number} ligne
      * @returns {number}

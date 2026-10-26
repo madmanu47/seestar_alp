@@ -4,7 +4,8 @@ The Horizon page (`/horizon`) analyses a 360-degree panorama in the browser
 with these two files; the photo is not uploaded.
 
 - Source: [mmedia-fr/mmhorizon](https://github.com/mmedia-fr/mmhorizon),
-  GPL-3.0-or-later, version 0.1.1, commit `fa75ece` (`wasm/` crate).
+  GPL-3.0-or-later, version 0.1.1, commit `afa2bae` (`wasm/` crate; branch
+  `socle/tour-deux-clics`, pull request #5, which adds `fixerTour`).
 - Interface: `docs/WASM.md` in that repository.
 - Built with:
 
@@ -18,5 +19,5 @@ artifact of its CI, and replace both files together.
 
 | File | SHA-256 |
 |---|---|
-| `mmhorizon_wasm.js` | `11ed58ec7f0af8bfb3f068c3a3323b2b92b54f65390aaf552bd0f0d279278454` |
-| `mmhorizon_wasm_bg.wasm` | `40594021e0dcfc932b95814a759176bd400abc7bec87aaade08eee9c48c194fe` |
+| `mmhorizon_wasm.js` | `0effd8c0990e4d90700d677e321fd654a9b3c8e68230b8a646e6dd5d4a80e1f4` |
+| `mmhorizon_wasm_bg.wasm` | `adb57c96ace3c34d7714d6b72abac2331ecfb220c7815a122e6bdca3ddc7b84b` |
