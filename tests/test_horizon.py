@@ -244,4 +244,6 @@ def test_visibility_needs_no_earth_orientation_table(astaffort, monkeypatch):
     monkeypatch.setattr(iers.IERS_Auto, "open", stale)
     monkeypatch.setattr(iers.IERS, "open", stale)
     result = horizon.visibility(POLARIS, None, when=Time.now())
-    assert result["altitude"] == pytest.approx(44.5, abs=1.0)
+    # Any time of day: Polaris circles within 0.74 degree of the pole, whose
+    # altitude is the latitude, 44.06.
+    assert result["altitude"] == pytest.approx(44.06, abs=0.8)
