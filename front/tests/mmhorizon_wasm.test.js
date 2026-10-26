@@ -12,7 +12,7 @@ describe("mmhorizon_wasm.js", () => {
   });
 
   it("passes its self-check", () => {
-    expect(version()).toBe("0.1.2");
+    expect(version()).toBe("0.1.3");
     expect(controle()).toMatch(/^contrôle : tour 1800\.0 px/);
   });
 
