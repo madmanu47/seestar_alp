@@ -171,7 +171,7 @@ def sun_altaz(latitude, longitude, when: Time):
 
     Low-precision formulae of the Astronomical Almanac, good to a hundredth of
     a degree between 1950 and 2050: enough to orient a panorama on the Sun.
-    Geometric position: refraction would lift it by 0.03 degree at 25 degrees.
+    Geometric position: add ``refraction`` for where a photo shows it.
     """
     days = when.utc.jd - 2451545.0
     mean_longitude = 280.460 + 0.9856474 * days
@@ -185,6 +185,18 @@ def sun_altaz(latitude, longitude, when: Time):
     return _altaz_of_date(
         math.degrees(ra), math.degrees(dec), latitude, longitude, when
     )
+
+
+def refraction(altitude):
+    """Atmospheric refraction, in degrees, of a body at geometric ``altitude``.
+
+    Saemundsson's formula, standard pressure and temperature: 0.04 degree at
+    25 degrees of altitude, 0.16 at 5, half a degree at the horizon. A photo
+    shows the Sun lifted by this much.
+    """
+    if altitude < -1.0:
+        return 0.0
+    return 1.02 / math.tan(math.radians(altitude + 10.3 / (altitude + 5.11))) / 60.0
 
 
 def _altaz_of_date(ra_deg, dec_deg, latitude, longitude, when: Time):

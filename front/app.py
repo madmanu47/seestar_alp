@@ -4633,7 +4633,7 @@ class HorizonResource:
 
 
 class HorizonSunResource:
-    """Position of the Sun, to orient a panorama on it: ?when=ISO&lat=&lon=."""
+    """Apparent position of the Sun, to orient a panorama: ?when=ISO&lat=&lon=."""
 
     @staticmethod
     def on_get(req, resp):
@@ -4649,6 +4649,8 @@ class HorizonSunResource:
             raise falcon.HTTPBadRequest(description="when: give the UTC offset")
         utc = Time(when.astimezone(pytz.utc).replace(tzinfo=None), scale="utc")
         altitude, azimuth = horizon.sun_altaz(lat, lon, utc)
+        # Apparent altitude: where the photo shows the Sun.
+        altitude += horizon.refraction(altitude)
         resp.media = {"altitude": round(altitude, 3), "azimuth": round(azimuth, 3)}
 
 

@@ -349,3 +349,11 @@ def test_save_panorama_profile_rejects_invalid_input(
         horizon.save_panorama_profile(hrz, record)
     assert not (tmp_path / "horizon.hrz").exists()
     assert config_file.horizon_file == "/etc/seestar/old.hrz"
+
+
+@pytest.mark.parametrize(
+    "altitude, lift",
+    [(25.0, 0.036), (5.0, 0.161), (0.0, 0.483), (-5.0, 0.0), (90.0, 0.0)],
+)
+def test_refraction(altitude, lift):
+    assert horizon.refraction(altitude) == pytest.approx(lift, abs=0.002)

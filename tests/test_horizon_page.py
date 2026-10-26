@@ -120,6 +120,11 @@ def test_sun_position(client):
     assert resp.status_code == 200
     assert resp.json["azimuth"] == pytest.approx(218.0, abs=0.1)
     assert resp.json["altitude"] == pytest.approx(26.3, abs=0.1)
+    # Apparent altitude: the geometric one lifted by refraction.
+    geometric, _ = horizon.sun_altaz(
+        44.06504, 0.65041, horizon.Time("2026-10-23T13:59:04", scale="utc")
+    )
+    assert resp.json["altitude"] - geometric == pytest.approx(0.034, abs=0.002)
     # The browser sends UTC.
     utc = client.simulate_get(
         "/horizon/sun",

@@ -118,14 +118,13 @@ function draw() {
 }
 
 function drawProfile() {
+  // An SVG element has no `hidden` property: set the attribute itself.
   const svg = $("hz-profile");
-  if (!files) {
-    svg.hidden = true;
-    return;
+  svg.toggleAttribute("hidden", !files);
+  if (files) {
+    const altitudes = JSON.parse(files.horizonJson).hauteur_min_deg;
+    $("hz-profile-shape").setAttribute("points", profilePoints(altitudes));
   }
-  const altitudes = JSON.parse(files.horizonJson).hauteur_min_deg;
-  $("hz-profile-shape").setAttribute("points", profilePoints(altitudes));
-  svg.hidden = false;
 }
 
 // --- State updates --------------------------------------------------------
