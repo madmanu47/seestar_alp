@@ -39,14 +39,15 @@
                 <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
                     {# Plain .btn: each takes the colour of its marks (horizon_panorama.js). #}
                     <div class="btn-group" role="group" aria-label="What a click on the panorama sets">
-                        <input type="radio" class="btn-check" name="hz-mode" id="hz-mode-north" value="north" checked>
-                        <label class="btn" for="hz-mode-north">North</label>
-                        <input type="radio" class="btn-check" name="hz-mode" id="hz-mode-sun" value="sun">
-                        <label class="btn" for="hz-mode-sun">Sun</label>
-                        <input type="radio" class="btn-check" name="hz-mode" id="hz-mode-horizon" value="horizon">
-                        <label class="btn" for="hz-mode-horizon">Horizon line</label>
+                        {# In the order of the steps: one turn, then the Sun or north, then the horizon line. #}
                         <input type="radio" class="btn-check" name="hz-mode" id="hz-mode-turn" value="turn">
                         <label class="btn" for="hz-mode-turn">One turn</label>
+                        <input type="radio" class="btn-check" name="hz-mode" id="hz-mode-sun" value="sun">
+                        <label class="btn" for="hz-mode-sun">Sun</label>
+                        <input type="radio" class="btn-check" name="hz-mode" id="hz-mode-north" value="north" checked>
+                        <label class="btn" for="hz-mode-north">North</label>
+                        <input type="radio" class="btn-check" name="hz-mode" id="hz-mode-horizon" value="horizon">
+                        <label class="btn" for="hz-mode-horizon">Horizon line</label>
                     </div>
                     <div>
                         <label for="hz-zoom" class="form-label me-1 mb-0">Zoom</label>
@@ -64,10 +65,10 @@
                 <p class="small mt-1 mb-1"><span id="hz-pointer">&nbsp;</span></p>
                 <p class="small text-body-secondary">
                     <span style="color: rgb(255, 40, 40);">&#9632;</span> detected limit of the sky &middot;
-                    <span data-mark="north">&#9632;</span> north, then east, south, west &middot;
+                    <span data-mark="turn">&#9632;</span> same point at both ends (one turn) &middot;
                     <span data-mark="sun">&#9632;</span> Sun clicked &middot;
-                    <span data-mark="horizon">&#9632;</span> horizon line (0&deg;) &middot;
-                    <span data-mark="turn">&#9632;</span> same point at both ends (one turn).
+                    <span data-mark="north">&#9632;</span> north, then east, south, west &middot;
+                    <span data-mark="horizon">&#9632;</span> horizon line (0&deg;).
                     <span id="hz-north"></span>
                 </p>
 

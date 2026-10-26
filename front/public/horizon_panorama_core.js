@@ -2,15 +2,15 @@
 // worker (and tested in front/tests/horizon_panorama.test.js).
 
 /*
- * Colour of each mode button and of the marks it leaves on the panorama:
- * north and the cardinal points, the Sun clicked, the horizon line, the two
- * points of one turn.
+ * Colour of each mode button and of the marks it leaves on the panorama, in
+ * the order of the steps: the two points of one turn, the Sun clicked, north
+ * and the cardinal points, the horizon line.
  */
 export const MARK_COLORS = {
-  north: "rgb(255, 220, 0)",
-  sun: "rgb(255, 140, 0)",
-  horizon: "rgb(0, 230, 230)",
   turn: "rgb(255, 0, 255)",
+  sun: "rgb(255, 140, 0)",
+  north: "rgb(255, 220, 0)",
+  horizon: "rgb(0, 230, 230)",
 };
 
 /*

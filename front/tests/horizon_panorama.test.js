@@ -36,7 +36,7 @@ describe("horizon_panorama_core.js", () => {
   });
 
   it("gives each mode button and its marks a colour of their own", () => {
-    expect(Object.keys(MARK_COLORS)).toEqual(["north", "sun", "horizon", "turn"]);
+    expect(Object.keys(MARK_COLORS)).toEqual(["turn", "sun", "north", "horizon"]);
     expect(new Set(Object.values(MARK_COLORS)).size).toBe(4);
     // Not the red of the detected limit.
     expect(Object.values(MARK_COLORS)).not.toContain("rgb(255, 40, 40)");
