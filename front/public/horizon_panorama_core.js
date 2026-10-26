@@ -2,6 +2,18 @@
 // worker (and tested in front/tests/horizon_panorama.test.js).
 
 /*
+ * Colour of each mode button and of the marks it leaves on the panorama:
+ * north and the cardinal points, the Sun clicked, the horizon line, the two
+ * points of one turn.
+ */
+export const MARK_COLORS = {
+  north: "rgb(255, 220, 0)",
+  sun: "rgb(255, 140, 0)",
+  horizon: "rgb(0, 230, 230)",
+  turn: "rgb(255, 0, 255)",
+};
+
+/*
  * Horizon line (row at altitude 0) once the Sun, seen at row sunRow, is known
  * to stand at sunAltitude. rowOfSunAltitude is the row of that altitude under
  * the current horizon line: both projections MMhorizon handles move every

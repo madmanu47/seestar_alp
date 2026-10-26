@@ -1,4 +1,5 @@
 import {
+  MARK_COLORS,
   extent,
   hasUtcOffset,
   horizonLineFromSun,
@@ -32,6 +33,13 @@ describe("horizon_panorama_core.js", () => {
     const point = photoPoint(610, 182.5, rect, 3600, 795, 12672, 2800);
     expect(point.column).toBeCloseTo(6336, 6);
     expect(point.row).toBeCloseTo(1400, 6);
+  });
+
+  it("gives each mode button and its marks a colour of their own", () => {
+    expect(Object.keys(MARK_COLORS)).toEqual(["north", "sun", "horizon", "turn"]);
+    expect(new Set(Object.values(MARK_COLORS)).size).toBe(4);
+    // Not the red of the detected limit.
+    expect(Object.values(MARK_COLORS)).not.toContain("rgb(255, 40, 40)");
   });
 
   it("takes two clicks for one turn only between half and all of the photo width", () => {

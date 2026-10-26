@@ -4,6 +4,7 @@
 // this ALP.
 
 import {
+  MARK_COLORS,
   extent,
   hasUtcOffset,
   photoPoint,
@@ -62,6 +63,9 @@ let files = null; // {hrz, horizonJson} once north is set
 let base = null; // canvas holding the preview image
 let firstPoint = null; // {column, row}: first click of the "One turn" mode
 let lastSun = null; // {column, row}: the Sun click north and horizon come from
+// Points clicked, kept on the panorama in the colour of their mode.
+let sunMarks = []; // the Sun, once or at both ends
+let turnMarks = []; // the same point at both ends, in "One turn" mode
 
 function setStatus(text, kind = "secondary") {
   const status = $("hz-status");
@@ -107,7 +111,7 @@ function draw() {
   }
   ctx.stroke();
 
-  ctx.strokeStyle = "rgb(0, 230, 230)";
+  ctx.strokeStyle = MARK_COLORS.horizon;
   ctx.setLineDash([8 * px, 6 * px]);
   ctx.beginPath();
   ctx.moveTo(0, current.horizon * ky);
@@ -121,7 +125,8 @@ function draw() {
     ["N", "E", "S", "W"].forEach((name, i) => {
       // Repeat the mark on every turn the photo shows.
       for (let x = current.cardinals[i]; x < photo.width; x += current.turn) {
-        ctx.strokeStyle = ctx.fillStyle = i === 0 ? "rgb(255, 220, 0)" : "rgba(255, 220, 0, 0.6)";
+        ctx.strokeStyle = ctx.fillStyle = MARK_COLORS.north;
+        ctx.globalAlpha = i === 0 ? 1 : 0.6;
         ctx.lineWidth = (i === 0 ? 2 : 1) * px;
         ctx.beginPath();
         ctx.moveTo(x * kx, 18 * px);
@@ -130,21 +135,25 @@ function draw() {
         ctx.fillText(name, x * kx, 15 * px);
       }
     });
+    ctx.globalAlpha = 1;
   }
 
-  if (firstPoint) {
-    ctx.strokeStyle = "rgb(255, 0, 255)";
+  // A clicked point: a line down the panorama, a ring where the click fell.
+  const mark = (point, color) => {
+    ctx.strokeStyle = color;
     ctx.lineWidth = 2 * px;
     ctx.setLineDash([4 * px, 4 * px]);
     ctx.beginPath();
-    ctx.moveTo(firstPoint.column * kx, 0);
-    ctx.lineTo(firstPoint.column * kx, canvas.height);
+    ctx.moveTo(point.column * kx, 0);
+    ctx.lineTo(point.column * kx, canvas.height);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.arc(firstPoint.column * kx, firstPoint.row * ky, 8 * px, 0, 2 * Math.PI);
+    ctx.arc(point.column * kx, point.row * ky, 8 * px, 0, 2 * Math.PI);
     ctx.stroke();
-  }
+  };
+  sunMarks.forEach((point) => mark(point, MARK_COLORS.sun));
+  [...turnMarks, ...(firstPoint ? [firstPoint] : [])].forEach((point) => mark(point, MARK_COLORS.turn));
 }
 
 function drawProfile() {
@@ -191,6 +200,8 @@ async function openPhoto(file) {
     };
     firstPoint = null;
     lastSun = null;
+    sunMarks = [];
+    turnMarks = [];
     base = document.createElement("canvas");
     base.width = photo.previewWidth;
     base.height = photo.previewHeight;
@@ -251,7 +262,8 @@ async function markTurn(column, row) {
     setStatus(`First point at column ${Math.round(column)}: now click the same point at the other end of the panorama.`);
     return;
   }
-  const a = firstPoint.column;
+  const first = firstPoint;
+  const a = first.column;
   firstPoint = null;
   const turn = turnBetween(a, column, photo.width);
   if (turn === null) {
@@ -261,6 +273,7 @@ async function markTurn(column, row) {
         `the photo width (${Math.round(photo.width / 2)} to ${photo.width} px). Click the first point again.`,
     );
   }
+  turnMarks = [first, { column, row }];
   await apply(await call("setTurn", { a, b: column }));
   const turnText = `One turn in ${Math.round(turn)} px: the photo covers ${Math.round(extent(photo.width, turn))}°.`;
   if (lastSun) {
@@ -277,9 +290,12 @@ async function clickSun(column, row) {
   const turn = lastSun && turnBetween(lastSun.column, column, photo.width);
   if (!turn) {
     lastSun = { column, row };
+    sunMarks = [{ column, row }];
     await orientOnSun(column, row);
     return;
   }
+  sunMarks = [sunMarks[0] ?? lastSun, { column, row }];
+  turnMarks = [];
   await apply(await call("setTurn", { a: lastSun.column, b: column }));
   lastSun = { column: lastSun.column, row: (lastSun.row + row) / 2 };
   await orientOnSun(
@@ -386,6 +402,19 @@ async function save() {
   } finally {
     $("hz-save").disabled = false;
   }
+}
+
+// Each mode button in the colour of the marks it leaves.
+for (const [name, color] of Object.entries(MARK_COLORS)) {
+  const label = document.querySelector(`label[for="hz-mode-${name}"]`);
+  for (const property of ["color", "border-color", "hover-bg", "hover-border-color", "active-bg", "active-border-color"]) {
+    label.style.setProperty(`--bs-btn-${property}`, color);
+  }
+  label.style.setProperty("--bs-btn-hover-color", "#000");
+  label.style.setProperty("--bs-btn-active-color", "#000");
+}
+for (const swatch of document.querySelectorAll("[data-mark]")) {
+  swatch.style.color = MARK_COLORS[swatch.dataset.mark];
 }
 
 $("hz-photo").addEventListener("change", (e) => e.target.files[0] && openPhoto(e.target.files[0]));
